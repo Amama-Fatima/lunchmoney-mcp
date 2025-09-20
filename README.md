@@ -42,7 +42,7 @@ The server can be configured in your MCP client's configuration file. The exact 
     "mcpServers": {
         "lunchmoney": {
             "command": "npx",
-            "args": ["@amama-fatim/lunchmoney-mcp"],
+            "args": ["@amama-fatima/lunchmoney-mcp"],
             "env": {
                 "LUNCHMONEY_API_TOKEN": "your-api-token-here"
             }
@@ -82,7 +82,7 @@ Different MCP clients store their configuration in different locations:
 
 ```bash
 # Run with npx
-LUNCHMONEY_API_TOKEN="your-api-token" npx @akutishevsky/lunchmoney-mcp
+LUNCHMONEY_API_TOKEN="your-api-token" npx @amama-fatima/lunchmoney-mcp
 ```
 
 ## Example Prompts
