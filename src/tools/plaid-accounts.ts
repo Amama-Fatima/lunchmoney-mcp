@@ -9,7 +9,7 @@ export function registerPlaidAccountTools(server: McpServer) {
         {},
         async () => {
             const { baseUrl, lunchmoneyApiToken } = getConfig();
-            
+
             const response = await fetch(`${baseUrl}/plaid_accounts`, {
                 headers: {
                     Authorization: `Bearer ${lunchmoneyApiToken}`,
@@ -29,12 +29,31 @@ export function registerPlaidAccountTools(server: McpServer) {
 
             const data = await response.json();
             const plaidAccounts: PlaidAccount[] = data.plaid_accounts;
-            
+
+            // Filter to essential account information only
+            const minimalPlaidAccounts = plaidAccounts.map((account) => ({
+                id: account.id,
+                name: account.name,
+                display_name: account.display_name,
+                type: account.type,
+                subtype: account.subtype,
+                mask: account.mask,
+                institution_name: account.institution_name,
+                status: account.status,
+                balance: account.balance,
+                currency: account.currency,
+                to_base: account.to_base,
+                limit: account.limit,
+            }));
+
             return {
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(plaidAccounts),
+                        text: JSON.stringify({
+                            plaid_accounts: minimalPlaidAccounts,
+                            count: minimalPlaidAccounts.length,
+                        }),
                     },
                 ],
             };
@@ -47,7 +66,7 @@ export function registerPlaidAccountTools(server: McpServer) {
         {},
         async () => {
             const { baseUrl, lunchmoneyApiToken } = getConfig();
-            
+
             const response = await fetch(`${baseUrl}/plaid_accounts/fetch`, {
                 method: "POST",
                 headers: {
