@@ -58,11 +58,29 @@ export function registerBudgetTools(server: McpServer) {
 
             const budgets: Budget[] = await response.json();
 
+            // Filter to essential budget information only
+            const minimalBudgets = budgets.map((budget) => ({
+                category_name: budget.category_name,
+                category_id: budget.category_id,
+                category_group_name: budget.category_group_name,
+                is_group: budget.is_group,
+                is_income: budget.is_income,
+                archived: budget.archived,
+                data: budget.data,
+                // Only include recurring info if it exists
+                ...(budget.recurring && { recurring: budget.recurring }),
+                // Only include config if it exists
+                ...(budget.config && { config: budget.config }),
+            }));
+
             return {
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(budgets),
+                        text: JSON.stringify({
+                            budgets: minimalBudgets,
+                            count: minimalBudgets.length,
+                        }),
                     },
                 ],
             };
