@@ -181,11 +181,45 @@ export function registerTransactionTools(server: McpServer) {
 
             const transaction: Transaction = await response.json();
 
+            // Return only essential transaction details
+            const minimalTransaction = {
+                id: transaction.id,
+                date: transaction.date,
+                payee: transaction.payee,
+                amount: transaction.amount,
+                currency: transaction.currency,
+                category_id: transaction.category_id,
+                category_name: transaction.category_name,
+                category_group_name: transaction.category_group_name,
+                status: transaction.status,
+                is_income: transaction.is_income,
+                account_display_name: transaction.plaid_account_display_name,
+                ...(transaction.notes && { notes: transaction.notes }),
+                tags: transaction.tags?.map((tag) => tag.name) || [],
+                // Only include relationship fields if they have actual values
+                ...(transaction.parent_id && {
+                    parent_id: transaction.parent_id,
+                }),
+                ...(transaction.group_id && { group_id: transaction.group_id }),
+                ...(transaction.is_group && { is_group: transaction.is_group }),
+                ...(transaction.has_children && {
+                    has_children: transaction.has_children,
+                }),
+                ...(transaction.recurring_id && {
+                    recurring_id: transaction.recurring_id,
+                    recurring_payee: transaction.recurring_payee,
+                    recurring_cadence: transaction.recurring_cadence,
+                }),
+                ...(transaction.external_id && {
+                    external_id: transaction.external_id,
+                }),
+            };
+
             return {
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(transaction),
+                        text: JSON.stringify(minimalTransaction),
                     },
                 ],
             };
