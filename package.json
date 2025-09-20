@@ -1,6 +1,6 @@
 {
-    "name": "@akutishevsky/lunchmoney-mcp",
-    "version": "1.0.1",
+    "name": "@amama-fatima/lunchmoney-mcp",
+    "version": "1.0.2",
     "description": "Model Context Protocol server for LunchMoney personal finance management",
     "main": "build/index.js",
     "bin": {
@@ -22,13 +22,13 @@
         "ai",
         "assistant"
     ],
-    "author": "",
+    "author": "Amama Fatima",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/akutishevsky/lunchmoney-mcp.git"
+        "url": "https://github.com/Amama-Fatima/lunchmoney-mcp.git"
     },
-    "homepage": "https://github.com/akutishevsky/lunchmoney-mcp#readme",
+    "homepage": "https://github.com/Amama-Fatima/lunchmoney-mcp#readme",
     "type": "module",
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.17.0",
