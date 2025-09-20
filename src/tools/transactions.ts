@@ -106,13 +106,46 @@ export function registerTransactionTools(server: McpServer) {
             const data = await response.json();
             const transactions: Transaction[] = data.transactions;
 
+            // filter to essential fields only
+            const minimalTransactions = transactions.map((t) => ({
+                id: t.id,
+                date: t.date,
+                amount: t.amount,
+                currency: t.currency,
+                to_base: t.to_base,
+                payee: t.payee,
+                category_id: t.category_id,
+                category_name: t.category_name,
+                category_group_id: t.category_group_id,
+                category_group_name: t.category_group_name,
+                status: t.status,
+                is_income: t.is_income,
+                exclude_from_budget: t.exclude_from_budget,
+                exclude_from_totals: t.exclude_from_totals,
+                is_pending: t.is_pending,
+                notes: t.notes,
+                account_display_name: t.plaid_account_display_name,
+                recurring_id: t.recurring_id,
+                recurring_payee: t.recurring_payee,
+                recurring_cadence: t.recurring_cadence,
+                parent_id: t.parent_id,
+                has_children: t.has_children,
+                group_id: t.group_id,
+                is_group: t.is_group,
+                external_id: t.external_id,
+                tags: t.tags?.map((tag) => tag.name) || [],
+                created_at: t.created_at,
+                updated_at: t.updated_at,
+            }));
+
             return {
                 content: [
                     {
                         type: "text",
                         text: JSON.stringify({
-                            transactions,
+                            transactions: minimalTransactions,
                             has_more: data.has_more,
+                            count: minimalTransactions.length,
                         }),
                     },
                 ],
