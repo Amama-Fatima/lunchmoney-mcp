@@ -20,11 +20,14 @@ export function registerCategoryTools(server: McpServer) {
         async ({ input }) => {
             const format = input.format || "flattened";
             const { baseUrl, lunchmoneyApiToken } = getConfig();
-            const response = await fetch(`${baseUrl}/categories?format=${format}`, {
-                headers: {
-                    Authorization: `Bearer ${lunchmoneyApiToken}`,
-                },
-            });
+            const response = await fetch(
+                `${baseUrl}/categories?format=${format}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${lunchmoneyApiToken}`,
+                    },
+                }
+            );
 
             if (!response.ok) {
                 return {
@@ -37,13 +40,36 @@ export function registerCategoryTools(server: McpServer) {
                 };
             }
 
-            const categories: Category[] = await response.json();
-            
+            const data = await response.json();
+            const categories: Category[] = data.categories || data;
+
+            // Filter to essential category information only
+            const minimalCategories = categories.map((category) => ({
+                id: category.id,
+                name: category.name,
+                description: category.description,
+                is_income: category.is_income,
+                is_group: category.is_group,
+                group_id: category.group_id,
+                archived: category.archived,
+                // For group categories, include simplified children
+                ...(category.children && {
+                    children: category.children.map((child) => ({
+                        id: child.id,
+                        name: child.name,
+                        description: child.description,
+                    })),
+                }),
+            }));
+
             return {
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(categories),
+                        text: JSON.stringify({
+                            categories: minimalCategories,
+                            count: minimalCategories.length,
+                        }),
                     },
                 ],
             };
@@ -65,11 +91,14 @@ export function registerCategoryTools(server: McpServer) {
         async ({ input }) => {
             const { categoryId } = input;
             const { baseUrl, lunchmoneyApiToken } = getConfig();
-            const response = await fetch(`${baseUrl}/categories/${categoryId}`, {
-                headers: {
-                    Authorization: `Bearer ${lunchmoneyApiToken}`,
-                },
-            });
+            const response = await fetch(
+                `${baseUrl}/categories/${categoryId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${lunchmoneyApiToken}`,
+                    },
+                }
+            );
 
             if (!response.ok) {
                 return {
@@ -83,7 +112,7 @@ export function registerCategoryTools(server: McpServer) {
             }
 
             const category: Category = await response.json();
-            
+
             return {
                 content: [
                     {
@@ -191,7 +220,7 @@ export function registerCategoryTools(server: McpServer) {
             }
 
             const category: Category = await response.json();
-            
+
             return {
                 content: [
                     {
@@ -396,14 +425,17 @@ export function registerCategoryTools(server: McpServer) {
                 requestBody.group_id = group_id;
             }
 
-            const response = await fetch(`${baseUrl}/categories/${categoryId}`, {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${lunchmoneyApiToken}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(requestBody),
-            });
+            const response = await fetch(
+                `${baseUrl}/categories/${categoryId}`,
+                {
+                    method: "PUT",
+                    headers: {
+                        Authorization: `Bearer ${lunchmoneyApiToken}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(requestBody),
+                }
+            );
 
             if (!response.ok) {
                 return {
@@ -432,7 +464,9 @@ export function registerCategoryTools(server: McpServer) {
         "Add categories (either existing or new) to a single category group.",
         {
             input: z.object({
-                group_id: z.number().describe("Id of the parent group to add to."),
+                group_id: z
+                    .number()
+                    .describe("Id of the parent group to add to."),
                 category_ids: z
                     .array(z.number())
                     .optional()
@@ -511,12 +545,15 @@ export function registerCategoryTools(server: McpServer) {
             const { category_id } = input;
             const { baseUrl, lunchmoneyApiToken } = getConfig();
 
-            const response = await fetch(`${baseUrl}/categories/${category_id}`, {
-                method: "DELETE",
-                headers: {
-                    Authorization: `Bearer ${lunchmoneyApiToken}`,
-                },
-            });
+            const response = await fetch(
+                `${baseUrl}/categories/${category_id}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        Authorization: `Bearer ${lunchmoneyApiToken}`,
+                    },
+                }
+            );
 
             if (!response.ok) {
                 return {
