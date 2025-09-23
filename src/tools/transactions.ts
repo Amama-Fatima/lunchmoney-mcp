@@ -38,98 +38,225 @@ export function registerTransactionTools(server: McpServer) {
                 offset: z
                     .number()
                     .optional()
-                    .describe("Number of transactions to skip"),
+                    .describe(
+                        "Number of transactions to skip (only used when fetch_all is false)"
+                    ),
                 limit: z
                     .number()
                     .optional()
                     .describe(
-                        "Maximum number of transactions to return (max 500)"
+                        "Maximum number of transactions to return (max 500, only used when fetch_all is false)"
                     ),
                 debit_as_negative: z
                     .boolean()
                     .optional()
                     .describe("Pass true to return debit amounts as negative"),
+                fetch_all: z
+                    .boolean()
+                    .optional()
+                    .default(true)
+                    .describe(
+                        "Fetch all transactions using pagination (recommended). Set to false to use manual limit/offset"
+                    ),
+                max_transactions: z
+                    .number()
+                    .optional()
+                    .default(10000)
+                    .describe(
+                        "Safety limit for maximum transactions to fetch (prevents infinite loops)"
+                    ),
             }),
         },
         async ({ input }) => {
             const { baseUrl, lunchmoneyApiToken } = getConfig();
 
-            const params = new URLSearchParams({
-                start_date: input.start_date,
-                end_date: input.end_date,
-            });
+            // Helper function to build query parameters
+            const buildParams = (offset = 0, limit = 500) => {
+                const params = new URLSearchParams({
+                    start_date: input.start_date,
+                    end_date: input.end_date,
+                    offset: offset.toString(),
+                    limit: limit.toString(),
+                });
 
-            if (input.tag_id !== undefined)
-                params.append("tag_id", input.tag_id.toString());
-            if (input.recurring_id !== undefined)
-                params.append("recurring_id", input.recurring_id.toString());
-            if (input.plaid_account_id !== undefined)
-                params.append(
-                    "plaid_account_id",
-                    input.plaid_account_id.toString()
+                if (input.tag_id !== undefined)
+                    params.append("tag_id", input.tag_id.toString());
+                if (input.recurring_id !== undefined)
+                    params.append(
+                        "recurring_id",
+                        input.recurring_id.toString()
+                    );
+                if (input.plaid_account_id !== undefined)
+                    params.append(
+                        "plaid_account_id",
+                        input.plaid_account_id.toString()
+                    );
+                if (input.category_id !== undefined)
+                    params.append("category_id", input.category_id.toString());
+                if (input.asset_id !== undefined)
+                    params.append("asset_id", input.asset_id.toString());
+                if (input.is_group !== undefined)
+                    params.append("is_group", input.is_group.toString());
+                if (input.status !== undefined)
+                    params.append("status", input.status);
+                if (input.debit_as_negative !== undefined)
+                    params.append(
+                        "debit_as_negative",
+                        input.debit_as_negative.toString()
+                    );
+
+                return params;
+            };
+
+            // Helper function to make API request
+            const fetchTransactions = async (offset: number, limit: number) => {
+                const params = buildParams(offset, limit);
+                const response = await fetch(
+                    `${baseUrl}/transactions?${params}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${lunchmoneyApiToken}`,
+                        },
+                    }
                 );
-            if (input.category_id !== undefined)
-                params.append("category_id", input.category_id.toString());
-            if (input.asset_id !== undefined)
-                params.append("asset_id", input.asset_id.toString());
-            if (input.is_group !== undefined)
-                params.append("is_group", input.is_group.toString());
-            if (input.status !== undefined)
-                params.append("status", input.status);
-            if (input.offset !== undefined)
-                params.append("offset", input.offset.toString());
-            if (input.limit !== undefined)
-                params.append("limit", input.limit.toString());
-            if (input.debit_as_negative !== undefined)
-                params.append(
-                    "debit_as_negative",
-                    input.debit_as_negative.toString()
-                );
 
-            const response = await fetch(`${baseUrl}/transactions?${params}`, {
-                headers: {
-                    Authorization: `Bearer ${lunchmoneyApiToken}`,
-                },
-            });
+                if (!response.ok) {
+                    throw new Error(
+                        `API request failed: ${response.statusText}`
+                    );
+                }
 
-            if (!response.ok) {
+                return await response.json();
+            };
+
+            // Helper function to format transactions for dashboard
+            const formatTransactions = (transactions: Transaction[]) => {
+                return transactions.map((t) => ({
+                    id: t.id,
+                    date: t.date,
+                    category_name: t.category_name,
+                    payee: t.payee,
+                    amount: t.amount,
+                    currency: t.currency,
+                    account_display_name: t.plaid_account_display_name,
+                    tags: t.tags?.map((tag) => tag.name) || [],
+                }));
+            };
+
+            try {
+                if (input.fetch_all) {
+                    // Automatic pagination mode
+                    let allTransactions = [];
+                    let offset = 0;
+                    const batchSize = 500; // Maximum allowed by Lunch Money API
+                    let hasMore = true;
+                    let requestCount = 0;
+
+                    console.log(
+                        `Starting pagination fetch from ${input.start_date} to ${input.end_date}`
+                    );
+
+                    while (
+                        hasMore &&
+                        allTransactions.length < input.max_transactions
+                    ) {
+                        requestCount++;
+                        console.log(
+                            `Fetching batch ${requestCount}, offset: ${offset}`
+                        );
+
+                        const data = await fetchTransactions(offset, batchSize);
+                        const transactions = data.transactions || [];
+
+                        allTransactions.push(...transactions);
+
+                        // Check if we should continue
+                        hasMore =
+                            data.has_more && transactions.length === batchSize;
+                        offset += batchSize;
+
+                        // Safety check to prevent runaway requests
+                        if (requestCount > 100) {
+                            console.warn(
+                                "Reached maximum request limit (100 requests)"
+                            );
+                            break;
+                        }
+
+                        console.log(
+                            `Batch ${requestCount} complete. Total transactions: ${allTransactions.length}, has_more: ${data.has_more}`
+                        );
+                    }
+
+                    const dashboardTransactions =
+                        formatTransactions(allTransactions);
+
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: JSON.stringify({
+                                    transactions: dashboardTransactions,
+                                    total_count: dashboardTransactions.length,
+                                    requests_made: requestCount,
+                                    fetched_all:
+                                        !hasMore ||
+                                        allTransactions.length >=
+                                            input.max_transactions,
+                                    truncated_at_limit:
+                                        allTransactions.length >=
+                                        input.max_transactions,
+                                    date_range: {
+                                        start: input.start_date,
+                                        end: input.end_date,
+                                    },
+                                }),
+                            },
+                        ],
+                    };
+                } else {
+                    // Single request mode (original behavior)
+                    const limit = input.limit || 500;
+                    const offset = input.offset || 0;
+
+                    console.log(
+                        `Single request mode: offset=${offset}, limit=${limit}`
+                    );
+
+                    const data = await fetchTransactions(offset, limit);
+                    const dashboardTransactions = formatTransactions(
+                        data.transactions || []
+                    );
+
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: JSON.stringify({
+                                    transactions: dashboardTransactions,
+                                    has_more: data.has_more,
+                                    count: dashboardTransactions.length,
+                                    offset: offset,
+                                    limit: limit,
+                                }),
+                            },
+                        ],
+                    };
+                }
+            } catch (error) {
                 return {
                     content: [
                         {
                             type: "text",
-                            text: `Failed to get transactions: ${response.statusText}`,
+                            text: `Failed to get transactions: ${
+                                error instanceof Error
+                                    ? error.message
+                                    : String(error)
+                            }`,
                         },
                     ],
                 };
             }
-
-            const data = await response.json();
-            const transactions: Transaction[] = data.transactions;
-
-            // Return only dashboard-visible fields
-            const dashboardTransactions = transactions.map((t) => ({
-                id: t.id,
-                date: t.date,
-                category_name: t.category_name,
-                payee: t.payee,
-                amount: t.amount,
-                currency: t.currency,
-                account_display_name: t.plaid_account_display_name,
-                tags: t.tags?.map((tag) => tag.name) || [],
-            }));
-
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: JSON.stringify({
-                            transactions: dashboardTransactions,
-                            has_more: data.has_more,
-                            count: dashboardTransactions.length,
-                        }),
-                    },
-                ],
-            };
         }
     );
 
