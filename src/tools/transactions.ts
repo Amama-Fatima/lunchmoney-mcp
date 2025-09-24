@@ -261,6 +261,199 @@ export function registerTransactionTools(server: McpServer) {
     );
 
     server.tool(
+        "get_category_totals",
+        "Get total amounts grouped by category (and optionally subcategory) within a date range",
+        {
+            input: z.object({
+                start_date: z
+                    .string()
+                    .describe("Start date in YYYY-MM-DD format"),
+                end_date: z.string().describe("End date in YYYY-MM-DD format"),
+                debit_as_negative: z
+                    .boolean()
+                    .optional()
+                    .describe("Return debits as negative"),
+                category_id: z
+                    .number()
+                    .optional()
+                    .describe("If provided, filter to this category"),
+                plaid_account_id: z
+                    .number()
+                    .optional()
+                    .describe("Filter by Plaid account ID"),
+                asset_id: z.number().optional().describe("Filter by asset ID"),
+            }),
+        },
+        async ({ input }) => {
+            const { baseUrl, lunchmoneyApiToken } = getConfig();
+
+            // Helper to fetch all transactions (with pagination) matching filters
+            async function fetchAllTransactions(): Promise<Transaction[]> {
+                const all: Transaction[] = [];
+                let offset = 0;
+                const limit = 500;
+                let hasMore = true;
+                let requestCount = 0;
+
+                while (hasMore) {
+                    const params = new URLSearchParams({
+                        start_date: input.start_date,
+                        end_date: input.end_date,
+                        offset: offset.toString(),
+                        limit: limit.toString(),
+                    });
+                    if (input.debit_as_negative !== undefined) {
+                        params.append(
+                            "debit_as_negative",
+                            input.debit_as_negative.toString()
+                        );
+                    }
+                    if (input.category_id !== undefined) {
+                        params.append(
+                            "category_id",
+                            input.category_id.toString()
+                        );
+                    }
+                    if (input.plaid_account_id !== undefined) {
+                        params.append(
+                            "plaid_account_id",
+                            input.plaid_account_id.toString()
+                        );
+                    }
+                    if (input.asset_id !== undefined) {
+                        params.append("asset_id", input.asset_id.toString());
+                    }
+
+                    const resp = await fetch(
+                        `${baseUrl}/transactions?${params}`,
+                        {
+                            headers: {
+                                Authorization: `Bearer ${lunchmoneyApiToken}`,
+                            },
+                        }
+                    );
+                    if (!resp.ok) {
+                        throw new Error(
+                            `Failed to fetch transactions: ${resp.statusText}`
+                        );
+                    }
+                    const data = await resp.json();
+                    const txs: Transaction[] = data.transactions || [];
+                    all.push(...txs);
+
+                    hasMore = data.has_more && txs.length === limit;
+                    offset += limit;
+
+                    requestCount += 1;
+                    // Safety: prevent infinite loop
+                    if (requestCount > 100) {
+                        console.warn(
+                            "Too many pagination requests in get_category_totals"
+                        );
+                        break;
+                    }
+                }
+
+                return all;
+            }
+
+            try {
+                const transactions = await fetchAllTransactions();
+
+                // Aggregate logic
+                // If category_id filter is applied, need the outer “category” grouping is not needed,
+                // but for uniformity, the structure is still kept.
+                const totals: Record<
+                    string,
+                    { total: number; subcategories: Record<string, number> }
+                > = {};
+
+                for (const t of transactions) {
+                    const category = t.category_name ?? "Uncategorized";
+                    const subcategory = t.category_group_name ?? "No group";
+
+                    if (!totals[category]) {
+                        totals[category] = { total: 0, subcategories: {} };
+                    }
+
+                    const amt = parseFloat(t.amount);
+                    totals[category].total += amt;
+
+                    if (!totals[category].subcategories[subcategory]) {
+                        totals[category].subcategories[subcategory] = 0;
+                    }
+                    totals[category].subcategories[subcategory] += amt;
+                }
+
+                // If category_id was provided and you want to simplify the output (just that category):
+                if (input.category_id !== undefined) {
+                    // There should be exactly one key in totals (if data exists)
+                    const keys = Object.keys(totals);
+                    if (keys.length === 0) {
+                        // no transactions in that category
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: JSON.stringify({
+                                        start_date: input.start_date,
+                                        end_date: input.end_date,
+                                        category_id: input.category_id,
+                                        totals: null,
+                                    }),
+                                },
+                            ],
+                        };
+                    } else {
+                        const onlyCat = keys[0];
+                        const result = {
+                            start_date: input.start_date,
+                            end_date: input.end_date,
+                            category_id: input.category_id,
+                            category_name: onlyCat,
+                            total: totals[onlyCat].total,
+                            subcategories: totals[onlyCat].subcategories,
+                        };
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: JSON.stringify(result),
+                                },
+                            ],
+                        };
+                    }
+                }
+
+                // Otherwise, return full breakdown over all categories
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: JSON.stringify({
+                                start_date: input.start_date,
+                                end_date: input.end_date,
+                                totals,
+                            }),
+                        },
+                    ],
+                };
+            } catch (err) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `Error in get_category_totals: ${
+                                err instanceof Error ? err.message : String(err)
+                            }`,
+                        },
+                    ],
+                };
+            }
+        }
+    );
+
+    server.tool(
         "get_single_transaction",
         "Get details of a specific transaction",
         {
