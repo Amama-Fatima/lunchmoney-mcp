@@ -1,41 +1,37 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getConfig } from "../config.js";
 import { Tag } from "../types.js";
+import { getAllTagsToolDescription } from "../description.js";
 
 export function registerTagTools(server: McpServer) {
-    server.tool(
-        "get_all_tags",
-        "Get a list of all tags associated with the user's account.",
-        {},
-        async () => {
-            const { baseUrl, lunchmoneyApiToken } = getConfig();
-            const response = await fetch(`${baseUrl}/tags`, {
-                headers: {
-                    Authorization: `Bearer ${lunchmoneyApiToken}`,
-                },
-            });
+    server.tool("get_all_tags", getAllTagsToolDescription, {}, async () => {
+        const { baseUrl, lunchmoneyApiToken } = getConfig();
+        const response = await fetch(`${baseUrl}/tags`, {
+            headers: {
+                Authorization: `Bearer ${lunchmoneyApiToken}`,
+            },
+        });
 
-            if (!response.ok) {
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: `Failed to get all tags: ${response.statusText}`,
-                        },
-                    ],
-                };
-            }
-
-            const tags: Tag[] = await response.json();
-            
+        if (!response.ok) {
             return {
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(tags),
+                        text: `Failed to get all tags: ${response.statusText}`,
                     },
                 ],
             };
         }
-    );
+
+        const tags: Tag[] = await response.json();
+
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(tags),
+                },
+            ],
+        };
+    });
 }

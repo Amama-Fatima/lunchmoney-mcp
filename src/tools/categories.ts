@@ -2,11 +2,21 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getConfig } from "../config.js";
 import { Category, CategoryChild } from "../types.js";
+import {
+    addCategoryToGroupToolDescription,
+    createCategoryGroupToolDescription,
+    createCategoryToolDescription,
+    deleteCategoryToolDescription,
+    forceDeleteCategoryToolDescription,
+    getAllCategoriesToolDescription,
+    getSingleCategoryToolDescription,
+    updateCategoryToolDescription,
+} from "../description.js";
 
 export function registerCategoryTools(server: McpServer) {
     server.tool(
         "get_all_categories",
-        "Get a flattened list of all categories in alphabetical order associated with the user's account.",
+        getAllCategoriesToolDescription,
         {
             input: z.object({
                 format: z
@@ -78,7 +88,7 @@ export function registerCategoryTools(server: McpServer) {
 
     server.tool(
         "get_single_category",
-        "Get hydrated details on a single category. Note that if this category is part of a category group, its properties (is_income, exclude_from_budget, exclude_from_totals) will inherit from the category group.",
+        getSingleCategoryToolDescription,
         {
             input: z.object({
                 categoryId: z
@@ -126,7 +136,7 @@ export function registerCategoryTools(server: McpServer) {
 
     server.tool(
         "create_category",
-        "Create a single category.",
+        createCategoryToolDescription,
         {
             input: z.object({
                 name: z
@@ -234,7 +244,7 @@ export function registerCategoryTools(server: McpServer) {
 
     server.tool(
         "create_category_group",
-        "Create a single category group.",
+        createCategoryGroupToolDescription,
         {
             input: z.object({
                 name: z
@@ -346,7 +356,7 @@ export function registerCategoryTools(server: McpServer) {
 
     server.tool(
         "update_category",
-        "Update the properties for a single category or category group.",
+        updateCategoryToolDescription,
         {
             input: z.object({
                 name: z
@@ -461,7 +471,7 @@ export function registerCategoryTools(server: McpServer) {
 
     server.tool(
         "add_to_category_group",
-        "Add categories (either existing or new) to a single category group.",
+        addCategoryToGroupToolDescription,
         {
             input: z.object({
                 group_id: z
@@ -530,7 +540,7 @@ export function registerCategoryTools(server: McpServer) {
 
     server.tool(
         "delete_category",
-        "Delete a single category or category group. This will only work if there are no dependencies, such as existing budgets for the category, categorized transactions, categorized recurring items, etc. If there are dependents, this endpoint will return what the dependents are and how many there are.",
+        deleteCategoryToolDescription,
         {
             input: z.object({
                 category_id: z
@@ -579,7 +589,7 @@ export function registerCategoryTools(server: McpServer) {
 
     server.tool(
         "force_delete_category",
-        "Delete a single category or category group and along with it, disassociate the category from any transactions, recurring items, budgets, etc. Note: it is best practice to first try the Delete Category endpoint to ensure you don't accidentally delete any data. Disassociation/deletion of the data arising from this endpoint is irreversible!",
+        forceDeleteCategoryToolDescription,
         {
             input: z.object({
                 category_id: z

@@ -2,11 +2,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getConfig } from "../config.js";
 import { Budget } from "../types.js";
+import {
+    getBudgetSummaryToolDescription,
+    removeBudgetToolDescription,
+    upsertBudgetToolDescription,
+} from "../description.js";
 
 export function registerBudgetTools(server: McpServer) {
     server.tool(
         "get_budget_summary",
-        "Get budget summary for a specific date range. The budgeted and spending amounts will be broken down by month.",
+        getBudgetSummaryToolDescription,
         {
             input: z.object({
                 start_date: z
@@ -89,7 +94,7 @@ export function registerBudgetTools(server: McpServer) {
 
     server.tool(
         "upsert_budget",
-        "Create or update a budget for a specific category and month",
+        upsertBudgetToolDescription,
         {
             input: z.object({
                 start_date: z
@@ -153,7 +158,7 @@ export function registerBudgetTools(server: McpServer) {
 
     server.tool(
         "remove_budget",
-        "Remove a budget for a specific category and month",
+        removeBudgetToolDescription,
         {
             input: z.object({
                 start_date: z

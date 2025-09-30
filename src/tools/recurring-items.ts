@@ -2,11 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getConfig } from "../config.js";
 import { RecurringItem } from "../types.js";
+import { getRecurringItemsToolDescription } from "../description.js";
 
 export function registerRecurringItemsTools(server: McpServer) {
     server.tool(
         "get_recurring_items",
-        "Retrieve a list of recurring items to expect for a specified month",
+        getRecurringItemsToolDescription,
         {
             input: z.object({
                 start_date: z

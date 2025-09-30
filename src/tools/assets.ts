@@ -2,66 +2,66 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getConfig } from "../config.js";
 import { Asset } from "../types.js";
+import {
+    createAssetToolDescription,
+    getAllAssetsToolDescription,
+    updateAssetToolDescription,
+} from "../description.js";
 
 export function registerAssetTools(server: McpServer) {
-    server.tool(
-        "get_all_assets",
-        "Get a list of all manually-managed assets associated with the user",
-        {},
-        async () => {
-            const { baseUrl, lunchmoneyApiToken } = getConfig();
+    server.tool("get_all_assets", getAllAssetsToolDescription, {}, async () => {
+        const { baseUrl, lunchmoneyApiToken } = getConfig();
 
-            const response = await fetch(`${baseUrl}/assets`, {
-                headers: {
-                    Authorization: `Bearer ${lunchmoneyApiToken}`,
-                },
-            });
+        const response = await fetch(`${baseUrl}/assets`, {
+            headers: {
+                Authorization: `Bearer ${lunchmoneyApiToken}`,
+            },
+        });
 
-            if (!response.ok) {
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: `Failed to get assets: ${response.statusText}`,
-                        },
-                    ],
-                };
-            }
-
-            const data = await response.json();
-            const assets: Asset[] = data.assets;
-
-            // Filter to essential asset information only
-            const minimalAssets = assets.map((asset) => ({
-                id: asset.id,
-                name: asset.name,
-                display_name: asset.display_name,
-                type_name: asset.type_name,
-                subtype_name: asset.subtype_name,
-                balance: asset.balance,
-                currency: asset.currency,
-                to_base: asset.to_base,
-                institution_name: asset.institution_name,
-                ...(asset.closed_on && { closed_on: asset.closed_on }),
-            }));
-
+        if (!response.ok) {
             return {
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify({
-                            assets: minimalAssets,
-                            count: minimalAssets.length,
-                        }),
+                        text: `Failed to get assets: ${response.statusText}`,
                     },
                 ],
             };
         }
-    );
+
+        const data = await response.json();
+        const assets: Asset[] = data.assets;
+
+        // Filter to essential asset information only
+        const minimalAssets = assets.map((asset) => ({
+            id: asset.id,
+            name: asset.name,
+            display_name: asset.display_name,
+            type_name: asset.type_name,
+            subtype_name: asset.subtype_name,
+            balance: asset.balance,
+            currency: asset.currency,
+            to_base: asset.to_base,
+            institution_name: asset.institution_name,
+            ...(asset.closed_on && { closed_on: asset.closed_on }),
+        }));
+
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify({
+                        assets: minimalAssets,
+                        count: minimalAssets.length,
+                    }),
+                },
+            ],
+        };
+    });
 
     server.tool(
         "create_asset",
-        "Create a new manually-managed asset",
+        createAssetToolDescription,
         {
             input: z.object({
                 type_name: z
@@ -172,7 +172,7 @@ export function registerAssetTools(server: McpServer) {
 
     server.tool(
         "update_asset",
-        "Update an existing manually-managed asset",
+        updateAssetToolDescription,
         {
             input: z.object({
                 asset_id: z.number().describe("ID of the asset to update"),
