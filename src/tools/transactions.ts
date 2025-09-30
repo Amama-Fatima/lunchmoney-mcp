@@ -2,11 +2,22 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getConfig } from "../config.js";
 import { Transaction } from "../types.js";
+import {
+    createTransactionGroupToolDescription,
+    createTransactionToolDescription,
+    deleteTransactionGroupToolDescription,
+    getCategoryTotalsToolDescription,
+    getSingleTransactionToolDescription,
+    getTransactionGroupToolDescription,
+    getTransactionsToolDescription,
+    unsplitTransactionToolDescription,
+    updateTransactionToolDescription,
+} from "../description.js";
 
 export function registerTransactionTools(server: McpServer) {
     server.tool(
         "get_transactions",
-        "Retrieve transactions within a date range with optional filters",
+        getTransactionsToolDescription,
         {
             input: z.object({
                 start_date: z
@@ -262,7 +273,7 @@ export function registerTransactionTools(server: McpServer) {
 
     server.tool(
         "get_category_totals",
-        "Get total amounts grouped by category (and optionally subcategory) within a date range",
+        getCategoryTotalsToolDescription,
         {
             input: z.object({
                 start_date: z
@@ -455,7 +466,7 @@ export function registerTransactionTools(server: McpServer) {
 
     server.tool(
         "get_single_transaction",
-        "Get details of a specific transaction",
+        getSingleTransactionToolDescription,
         {
             input: z.object({
                 transaction_id: z
@@ -548,7 +559,7 @@ export function registerTransactionTools(server: McpServer) {
 
     server.tool(
         "create_transactions",
-        "Insert one or more transactions",
+        createTransactionToolDescription,
         {
             input: z.object({
                 transactions: z
@@ -681,7 +692,7 @@ export function registerTransactionTools(server: McpServer) {
 
     server.tool(
         "update_transaction",
-        "Update an existing transaction",
+        updateTransactionToolDescription,
         {
             input: z.object({
                 transaction_id: z
@@ -796,7 +807,7 @@ export function registerTransactionTools(server: McpServer) {
 
     server.tool(
         "unsplit_transactions",
-        "Remove one or more transactions from a split",
+        unsplitTransactionToolDescription,
         {
             input: z.object({
                 parent_ids: z
@@ -849,7 +860,7 @@ export function registerTransactionTools(server: McpServer) {
 
     server.tool(
         "get_transaction_group",
-        "Get details of a transaction group",
+        getTransactionGroupToolDescription,
         {
             input: z.object({
                 transaction_id: z
@@ -895,7 +906,7 @@ export function registerTransactionTools(server: McpServer) {
 
     server.tool(
         "create_transaction_group",
-        "Create a transaction group",
+        createTransactionGroupToolDescription,
         {
             input: z.object({
                 date: z.string().describe("Date in YYYY-MM-DD format"),
@@ -952,7 +963,7 @@ export function registerTransactionTools(server: McpServer) {
 
     server.tool(
         "delete_transaction_group",
-        "Delete a transaction group or a single transaction.",
+        deleteTransactionGroupToolDescription,
         {
             input: z.object({
                 transaction_id: z

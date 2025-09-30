@@ -1,9 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getConfig } from "../config.js";
 import { User } from "../types.js";
+import { getUserToolDescription } from "../description.js";
 
 export function registerUserTools(server: McpServer) {
-    server.tool("get_user", "Get details on the current user", {}, async () => {
+    server.tool("get_user", getUserToolDescription, {}, async () => {
         const { baseUrl, lunchmoneyApiToken } = getConfig();
         const response = await fetch(`${baseUrl}/me`, {
             headers: {
@@ -23,7 +24,7 @@ export function registerUserTools(server: McpServer) {
         }
 
         const user: User = await response.json();
-        
+
         return {
             content: [
                 {
