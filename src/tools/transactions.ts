@@ -1,12 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { getConfig } from "../config.js";
 import { Transaction } from "../types.js";
 import {
     createTransactionGroupToolDescription,
     createTransactionToolDescription,
     deleteTransactionGroupToolDescription,
-    getCategoryTotalsToolDescription,
     getSingleTransactionToolDescription,
     getTransactionGroupToolDescription,
     getTransactionsToolDescription,

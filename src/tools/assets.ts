@@ -1,5 +1,4 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { getConfig } from "../config.js";
 import { Asset } from "../types.js";
 import {
