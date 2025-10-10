@@ -1,5 +1,4 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { getConfig } from "../config.js";
 import { Budget } from "../types.js";
 import {
@@ -7,202 +6,225 @@ import {
     removeBudgetToolDescription,
     upsertBudgetToolDescription,
 } from "../description.js";
+import {
+    getBudgetSummarySchema,
+    upsertBudgetSchema,
+    removeBudgetSchema,
+} from "../schema/budgets.js";
 
 export function registerBudgetTools(server: McpServer) {
-    server.tool(
+    server.registerTool(
         "get_budget_summary",
-        getBudgetSummaryToolDescription,
         {
-            input: z.object({
-                start_date: z
-                    .string()
-                    .describe(
-                        "Start date in YYYY-MM-DD format. Lunch Money currently only supports monthly budgets, so your date should be the start of a month (eg. 2021-04-01)"
-                    ),
-                end_date: z
-                    .string()
-                    .describe(
-                        "End date in YYYY-MM-DD format. Lunch Money currently only supports monthly budgets, so your date should be the end of a month (eg. 2021-04-30)"
-                    ),
-                currency: z
-                    .string()
-                    .optional()
-                    .describe(
-                        "Currency for budget (defaults to primary currency)"
-                    ),
-            }),
+            title: "Get Budget Summary",
+            description: getBudgetSummaryToolDescription,
+            inputSchema: getBudgetSummarySchema.shape,
         },
-        async ({ input }) => {
+        async (args) => {
             const { baseUrl, lunchmoneyApiToken } = getConfig();
 
             const params = new URLSearchParams({
-                start_date: input.start_date,
-                end_date: input.end_date,
+                start_date: args.start_date,
+                end_date: args.end_date,
             });
 
-            if (input.currency) {
-                params.append("currency", input.currency);
+            if (args.currency) {
+                params.append("currency", args.currency);
             }
 
-            const response = await fetch(`${baseUrl}/budgets?${params}`, {
-                headers: {
-                    Authorization: `Bearer ${lunchmoneyApiToken}`,
-                },
-            });
+            try {
+                const response = await fetch(`${baseUrl}/budgets?${params}`, {
+                    headers: {
+                        Authorization: `Bearer ${lunchmoneyApiToken}`,
+                    },
+                });
 
-            if (!response.ok) {
+                if (!response.ok) {
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: `Failed to get budget summary: ${response.statusText}`,
+                            },
+                        ],
+                        isError: true,
+                    };
+                }
+
+                const budgets: Budget[] = await response.json();
+
+                // Filter to essential budget information only
+                const minimalBudgets = budgets.map((budget) => ({
+                    category_name: budget.category_name,
+                    category_id: budget.category_id,
+                    category_group_name: budget.category_group_name,
+                    is_group: budget.is_group,
+                    is_income: budget.is_income,
+                    archived: budget.archived,
+                    data: budget.data,
+                    // Only include recurring info if it exists
+                    ...(budget.recurring && { recurring: budget.recurring }),
+                    // Only include config if it exists
+                    ...(budget.config && { config: budget.config }),
+                }));
+
                 return {
                     content: [
                         {
                             type: "text",
-                            text: `Failed to get budget summary: ${response.statusText}`,
+                            text: JSON.stringify({
+                                budgets: minimalBudgets,
+                                count: minimalBudgets.length,
+                            }),
                         },
                     ],
                 };
+            } catch (error) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `Failed to get budget summary: ${
+                                error instanceof Error
+                                    ? error.message
+                                    : String(error)
+                            }`,
+                        },
+                    ],
+                    isError: true,
+                };
             }
-
-            const budgets: Budget[] = await response.json();
-
-            // Filter to essential budget information only
-            const minimalBudgets = budgets.map((budget) => ({
-                category_name: budget.category_name,
-                category_id: budget.category_id,
-                category_group_name: budget.category_group_name,
-                is_group: budget.is_group,
-                is_income: budget.is_income,
-                archived: budget.archived,
-                data: budget.data,
-                // Only include recurring info if it exists
-                ...(budget.recurring && { recurring: budget.recurring }),
-                // Only include config if it exists
-                ...(budget.config && { config: budget.config }),
-            }));
-
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: JSON.stringify({
-                            budgets: minimalBudgets,
-                            count: minimalBudgets.length,
-                        }),
-                    },
-                ],
-            };
         }
     );
 
-    server.tool(
+    server.registerTool(
         "upsert_budget",
-        upsertBudgetToolDescription,
         {
-            input: z.object({
-                start_date: z
-                    .string()
-                    .describe("Budget month start date in YYYY-MM-DD format"),
-                category_id: z.number().describe("Category ID for the budget"),
-                amount: z.number().describe("Budget amount"),
-                currency: z
-                    .string()
-                    .optional()
-                    .describe(
-                        "Currency for budget (defaults to primary currency)"
-                    ),
-            }),
+            title: "Upsert Budget",
+            description: upsertBudgetToolDescription,
+            inputSchema: upsertBudgetSchema.shape,
         },
-        async ({ input }) => {
+        async (args) => {
             const { baseUrl, lunchmoneyApiToken } = getConfig();
 
             const body: any = {
-                start_date: input.start_date,
-                category_id: input.category_id,
-                amount: input.amount,
+                start_date: args.start_date,
+                category_id: args.category_id,
+                amount: args.amount,
             };
 
-            if (input.currency) {
-                body.currency = input.currency;
+            if (args.currency) {
+                body.currency = args.currency;
             }
 
-            const response = await fetch(`${baseUrl}/budgets`, {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${lunchmoneyApiToken}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(body),
-            });
+            try {
+                const response = await fetch(`${baseUrl}/budgets`, {
+                    method: "PUT",
+                    headers: {
+                        Authorization: `Bearer ${lunchmoneyApiToken}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(body),
+                });
 
-            if (!response.ok) {
+                if (!response.ok) {
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: `Failed to upsert budget: ${response.statusText}`,
+                            },
+                        ],
+                        isError: true,
+                    };
+                }
+
+                const result = await response.json();
+
                 return {
                     content: [
                         {
                             type: "text",
-                            text: `Failed to upsert budget: ${response.statusText}`,
+                            text: JSON.stringify(result),
                         },
                     ],
                 };
+            } catch (error) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `Failed to upsert budget: ${
+                                error instanceof Error
+                                    ? error.message
+                                    : String(error)
+                            }`,
+                        },
+                    ],
+                    isError: true,
+                };
             }
-
-            const result = await response.json();
-
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: JSON.stringify(result),
-                    },
-                ],
-            };
         }
     );
 
-    server.tool(
+    server.registerTool(
         "remove_budget",
-        removeBudgetToolDescription,
         {
-            input: z.object({
-                start_date: z
-                    .string()
-                    .describe("Budget month start date in YYYY-MM-DD format"),
-                category_id: z
-                    .number()
-                    .describe("Category ID for the budget to remove"),
-            }),
+            title: "Remove Budget",
+            description: removeBudgetToolDescription,
+            inputSchema: removeBudgetSchema.shape,
         },
-        async ({ input }) => {
+        async (args) => {
             const { baseUrl, lunchmoneyApiToken } = getConfig();
 
             const params = new URLSearchParams({
-                start_date: input.start_date,
-                category_id: input.category_id.toString(),
+                start_date: args.start_date,
+                category_id: args.category_id.toString(),
             });
 
-            const response = await fetch(`${baseUrl}/budgets?${params}`, {
-                method: "DELETE",
-                headers: {
-                    Authorization: `Bearer ${lunchmoneyApiToken}`,
-                },
-            });
+            try {
+                const response = await fetch(`${baseUrl}/budgets?${params}`, {
+                    method: "DELETE",
+                    headers: {
+                        Authorization: `Bearer ${lunchmoneyApiToken}`,
+                    },
+                });
 
-            if (!response.ok) {
+                if (!response.ok) {
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: `Failed to remove budget: ${response.statusText}`,
+                            },
+                        ],
+                        isError: true,
+                    };
+                }
+
                 return {
                     content: [
                         {
                             type: "text",
-                            text: `Failed to remove budget: ${response.statusText}`,
+                            text: "Budget removed successfully",
                         },
                     ],
                 };
+            } catch (error) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `Failed to remove budget: ${
+                                error instanceof Error
+                                    ? error.message
+                                    : String(error)
+                            }`,
+                        },
+                    ],
+                    isError: true,
+                };
             }
-
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: "Budget removed successfully",
-                    },
-                ],
-            };
         }
     );
 }
