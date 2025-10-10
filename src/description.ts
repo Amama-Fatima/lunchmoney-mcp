@@ -23,7 +23,11 @@ Response includes total_count and whether all transactions were fetched. For spe
 `;
 
 const getCategoryTotalsToolDescription = `
-<usecase>Calculates spending totals grouped by category and subcategory within a date range. Use this for high-level spending analysis, budget vs actual comparisons, identifying spending patterns by category, or generating financial summaries. Much more efficient than manually summing transactions.</usecase>
+<usecase>
+PRIMARY USE: Calculating net profit, total income, and total expenses for a date range. This is THE tool for answering questions like "what's my net profit for [month]?" or "show me income vs expenses for [period]".
+
+Also used for: High-level spending analysis, budget vs actual comparisons, identifying spending patterns by category, or generating financial summaries. Much more efficient than manually summing transactions.
+</usecase>
 
 <instructions>
 Requires start_date and end_date (YYYY-MM-DD format). Automatically fetches and aggregates all matching transactions. Returns totals organized by category with subcategory breakdowns.
@@ -32,7 +36,9 @@ Optional: Provide category_id to get totals for just one category. Use plaid_acc
 </instructions>
 
 <response_guidance>
-Returns aggregated totals with category and subcategory breakdowns. For detailed transaction lists within categories, use get_transactions with category_id filter. For comparing against budgets, use get_budget_summary with the same date range.
+Returns aggregated totals with category and subcategory breakdowns. Categories with negative totals are income, positive totals are expenses. Sum all negative values for total income, sum all positive values for total expenses, then calculate net profit as (income - expenses).
+
+For detailed transaction lists within categories, use get_transactions with category_id filter. For comparing against budgets, use get_budget_summary with the same date range.
 </response_guidance>`;
 
 const getSingleTransactionToolDescription = `
