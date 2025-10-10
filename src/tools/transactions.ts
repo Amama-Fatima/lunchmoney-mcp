@@ -5,6 +5,7 @@ import {
     createTransactionGroupToolDescription,
     createTransactionToolDescription,
     deleteTransactionGroupToolDescription,
+    getCategoryTotalsToolDescription,
     getSingleTransactionToolDescription,
     getTransactionGroupToolDescription,
     getTransactionsToolDescription,
@@ -15,6 +16,7 @@ import {
     createTransactionGroupSchema,
     createTransactionsSchema,
     deleteTransactionGroupSchema,
+    getCategoryTotalsSchema,
     getSingleTransactionSchema,
     getTransactionGroupSchema,
     getTransactionsSchema,
@@ -220,192 +222,170 @@ export function registerTransactionTools(server: McpServer) {
     );
 
     server.registerTool(
-        "get_transactions",
+        "get_category_totals",
         {
-            title: "Get Transactions",
-            description: getTransactionsToolDescription,
-            inputSchema: getTransactionsSchema.shape,
+            title: "Get Category Totals",
+            description: getCategoryTotalsToolDescription,
+            inputSchema: getCategoryTotalsSchema.shape,
         },
         async (args) => {
             const { baseUrl, lunchmoneyApiToken } = getConfig();
 
-            // Helper function to build query parameters
-            const buildParams = (offset = 0, limit = 500) => {
-                const params = new URLSearchParams({
-                    start_date: args.start_date,
-                    end_date: args.end_date,
-                    offset: offset.toString(),
-                    limit: limit.toString(),
-                });
+            // Helper to fetch all transactions (with pagination) matching filters
+            async function fetchAllTransactions(): Promise<Transaction[]> {
+                const all: Transaction[] = [];
+                let offset = 0;
+                const limit = 500;
+                let hasMore = true;
+                let requestCount = 0;
 
-                if (args.tag_id !== undefined)
-                    params.append("tag_id", args.tag_id.toString());
-                if (args.recurring_id !== undefined)
-                    params.append("recurring_id", args.recurring_id.toString());
-                if (args.plaid_account_id !== undefined)
-                    params.append(
-                        "plaid_account_id",
-                        args.plaid_account_id.toString()
-                    );
-                if (args.category_id !== undefined)
-                    params.append("category_id", args.category_id.toString());
-                if (args.asset_id !== undefined)
-                    params.append("asset_id", args.asset_id.toString());
-                if (args.is_group !== undefined)
-                    params.append("is_group", args.is_group.toString());
-                if (args.status !== undefined)
-                    params.append("status", args.status);
-                if (args.debit_as_negative !== undefined)
-                    params.append(
-                        "debit_as_negative",
-                        args.debit_as_negative.toString()
-                    );
-
-                return params;
-            };
-
-            // Helper function to make API request
-            const fetchTransactions = async (offset: number, limit: number) => {
-                const params = buildParams(offset, limit);
-                const response = await fetch(
-                    `${baseUrl}/transactions?${params}`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${lunchmoneyApiToken}`,
-                        },
+                while (hasMore) {
+                    const params = new URLSearchParams({
+                        start_date: args.start_date,
+                        end_date: args.end_date,
+                        offset: offset.toString(),
+                        limit: limit.toString(),
+                    });
+                    if (args.debit_as_negative !== undefined) {
+                        params.append(
+                            "debit_as_negative",
+                            args.debit_as_negative.toString()
+                        );
                     }
-                );
+                    if (args.category_id !== undefined) {
+                        params.append(
+                            "category_id",
+                            args.category_id.toString()
+                        );
+                    }
+                    if (args.plaid_account_id !== undefined) {
+                        params.append(
+                            "plaid_account_id",
+                            args.plaid_account_id.toString()
+                        );
+                    }
+                    if (args.asset_id !== undefined) {
+                        params.append("asset_id", args.asset_id.toString());
+                    }
 
-                if (!response.ok) {
-                    throw new Error(
-                        `API request failed: ${response.statusText}`
+                    const resp = await fetch(
+                        `${baseUrl}/transactions?${params}`,
+                        {
+                            headers: {
+                                Authorization: `Bearer ${lunchmoneyApiToken}`,
+                            },
+                        }
                     );
+                    if (!resp.ok) {
+                        throw new Error(
+                            `Failed to fetch transactions: ${resp.statusText}`
+                        );
+                    }
+                    const data = await resp.json();
+                    const txs: Transaction[] = data.transactions || [];
+                    all.push(...txs);
+
+                    hasMore = data.has_more && txs.length === limit;
+                    offset += limit;
+
+                    requestCount += 1;
+                    // Safety: prevent infinite loop
+                    if (requestCount > 100) {
+                        console.warn(
+                            "Too many pagination requests in get_category_totals"
+                        );
+                        break;
+                    }
                 }
 
-                return await response.json();
-            };
-
-            // Helper function to format transactions for dashboard
-            const formatTransactions = (transactions: Transaction[]) => {
-                return transactions.map((t) => ({
-                    id: t.id,
-                    date: t.date,
-                    category_name: t.category_name,
-                    payee: t.payee,
-                    amount: t.amount,
-                    currency: t.currency,
-                    account_display_name: t.plaid_account_display_name,
-                    tags: t.tags?.map((tag) => tag.name) || [],
-                }));
-            };
+                return all;
+            }
 
             try {
-                if (args.fetch_all) {
-                    // Automatic pagination mode
-                    let allTransactions = [];
-                    let offset = 0;
-                    const batchSize = 500;
-                    let hasMore = true;
-                    let requestCount = 0;
+                const transactions = await fetchAllTransactions();
 
-                    console.log(
-                        `Starting pagination fetch from ${args.start_date} to ${args.end_date}`
-                    );
+                // Aggregate logic
+                const totals: Record<
+                    string,
+                    { total: number; subcategories: Record<string, number> }
+                > = {};
 
-                    while (
-                        hasMore &&
-                        allTransactions.length < args.max_transactions
-                    ) {
-                        requestCount++;
-                        console.log(
-                            `Fetching batch ${requestCount}, offset: ${offset}`
-                        );
+                for (const t of transactions) {
+                    const category = t.category_name ?? "Uncategorized";
+                    const subcategory = t.category_group_name ?? "No group";
 
-                        const data = await fetchTransactions(offset, batchSize);
-                        const transactions = data.transactions || [];
-
-                        allTransactions.push(...transactions);
-
-                        hasMore =
-                            data.has_more && transactions.length === batchSize;
-                        offset += batchSize;
-
-                        if (requestCount > 100) {
-                            console.warn(
-                                "Reached maximum request limit (100 requests)"
-                            );
-                            break;
-                        }
-
-                        console.log(
-                            `Batch ${requestCount} complete. Total transactions: ${allTransactions.length}, has_more: ${data.has_more}`
-                        );
+                    if (!totals[category]) {
+                        totals[category] = { total: 0, subcategories: {} };
                     }
 
-                    const dashboardTransactions =
-                        formatTransactions(allTransactions);
+                    const amt = parseFloat(t.amount);
+                    totals[category].total += amt;
 
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: JSON.stringify({
-                                    transactions: dashboardTransactions,
-                                    total_count: dashboardTransactions.length,
-                                    requests_made: requestCount,
-                                    fetched_all:
-                                        !hasMore ||
-                                        allTransactions.length >=
-                                            args.max_transactions,
-                                    truncated_at_limit:
-                                        allTransactions.length >=
-                                        args.max_transactions,
-                                    date_range: {
-                                        start: args.start_date,
-                                        end: args.end_date,
-                                    },
-                                }),
-                            },
-                        ],
-                    };
-                } else {
-                    // Single request mode
-                    const limit = args.limit || 500;
-                    const offset = args.offset || 0;
-
-                    console.log(
-                        `Single request mode: offset=${offset}, limit=${limit}`
-                    );
-
-                    const data = await fetchTransactions(offset, limit);
-                    const dashboardTransactions = formatTransactions(
-                        data.transactions || []
-                    );
-
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: JSON.stringify({
-                                    transactions: dashboardTransactions,
-                                    has_more: data.has_more,
-                                    count: dashboardTransactions.length,
-                                    offset: offset,
-                                    limit: limit,
-                                }),
-                            },
-                        ],
-                    };
+                    if (!totals[category].subcategories[subcategory]) {
+                        totals[category].subcategories[subcategory] = 0;
+                    }
+                    totals[category].subcategories[subcategory] += amt;
                 }
-            } catch (error) {
+
+                // If category_id was provided and you want to simplify the output
+                if (args.category_id !== undefined) {
+                    const keys = Object.keys(totals);
+                    if (keys.length === 0) {
+                        // no transactions in that category
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: JSON.stringify({
+                                        start_date: args.start_date,
+                                        end_date: args.end_date,
+                                        category_id: args.category_id,
+                                        totals: null,
+                                    }),
+                                },
+                            ],
+                        };
+                    } else {
+                        const onlyCat = keys[0];
+                        const result = {
+                            start_date: args.start_date,
+                            end_date: args.end_date,
+                            category_id: args.category_id,
+                            category_name: onlyCat,
+                            total: totals[onlyCat].total,
+                            subcategories: totals[onlyCat].subcategories,
+                        };
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: JSON.stringify(result),
+                                },
+                            ],
+                        };
+                    }
+                }
+
+                // Otherwise, return full breakdown over all categories
                 return {
                     content: [
                         {
                             type: "text",
-                            text: `Failed to get transactions: ${
-                                error instanceof Error
-                                    ? error.message
-                                    : String(error)
+                            text: JSON.stringify({
+                                start_date: args.start_date,
+                                end_date: args.end_date,
+                                totals,
+                            }),
+                        },
+                    ],
+                };
+            } catch (err) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `Error in get_category_totals: ${
+                                err instanceof Error ? err.message : String(err)
                             }`,
                         },
                     ],
