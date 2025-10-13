@@ -14,9 +14,13 @@ import { registerCryptoTools } from "./tools/crypto.js";
 
 const server = new McpServer({
     name: "lunchmoney-mcp",
-    version: "1.0.0",
+    version: "2.0.0",
     capabilities: {
-        tools: {},
+        tools: { listChanged: false },
+        resources: {
+            subscribe: true,
+            listChanged: true,
+        },
     },
 });
 
