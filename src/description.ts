@@ -36,7 +36,7 @@ Optional: Provide category_id to get totals for just one category. Use plaid_acc
 </instructions>
 
 <response_guidance>
-Returns aggregated totals with category and subcategory breakdowns. Categories with negative totals are income, positive totals are expenses. Sum all negative values for total income, sum all positive values for total expenses, then calculate net profit as (income - expenses).
+Returns aggregated totals with category and subcategory breakdowns. Categories with negative totals are income, positive totals are expenses. Sum all the negative values for total income, sum all positive values for total expenses, then calculate net profit as (income - expenses).
 
 For detailed transaction lists within categories, use get_transactions with category_id filter. For comparing against budgets, use get_budget_summary with the same date range.
 </response_guidance>`;
