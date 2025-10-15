@@ -1,0 +1,56 @@
+# Place this in your lunchmoney-mcp repo
+name: Auto Publish on Description Change
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/description.ts'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bump version
+        run: npm version patch -m "chore: update descriptions [skip ci]"
+
+      - name: Push version bump
+        run: git push --follow-tags
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to NPM
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Trigger server update
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.SERVER_REPO_PAT }}" \
+            https://api.github.com/repos/Amama-Fatima/lunchmoney-mcp-remote/dispatches \
+            -d '{"event_type":"package-updated","client_payload":{"package":"@amama-fatima/lunchmoney-mcp","version":"'$(node -p "require('./package.json').version")'"}}'
