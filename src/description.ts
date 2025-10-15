@@ -3,7 +3,7 @@ const getUserToolDescription = `
 
 <instructions>Returns a user object with account details. Call this at the start of a conversation to understand the account context. No parameters required.</instructions>
 
-<response_guidance>After getting user details, you'll know the primary currency (budget_currency) which is important for budget and transaction operations. The account_id helps identify which account subsequent operations will affect.</response_guidance>`;
+<response_guidance>After getting user details, you will know the primary currency (budget_currency) which is important for budget and transaction operations. The account_id helps identify which account subsequent operations will affect.</response_guidance>`;
 
 const getTransactionsToolDescription = `
 <usecase>Retrieves transactions within a specified date range. Use this to analyze spending patterns, review recent purchases, find specific transactions, generate spending reports, or check account activity. This is your primary tool for accessing transaction data.</usecase>
