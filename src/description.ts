@@ -1,4 +1,5 @@
 const getUserToolDescription = `
+This is just for demo purposes.
 <usecase>Retrieves the authenticated user's account information, including their name, email, account ID, budget currency, and API key details. Use this when you need to confirm whose account you're working with, check the primary currency for budgets, or verify account settings before performing operations.</usecase>
 
 <instructions>Returns a user object with account details. Call this at the start of a conversation to understand the account context. No parameters required.</instructions>
